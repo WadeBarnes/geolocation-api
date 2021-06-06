@@ -1,24 +1,24 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-# FastAPI Example
+# Geolocation API
 
-This is a simple containerized example following the main [FastAPI Example](https://fastapi.tiangolo.com/#example).
+A simple Geolocation API based on [FastAPI](https://fastapi.tiangolo.com/), using [WadeBarnes/fastapi-example](https://github.com/WadeBarnes/fastapi-example) as the starting point.
 
-The project is setup so it can be used as a starting point for other FastAPI projects.
+The purpose of this project is to provide an API that can supply basic Geolocation information, such as latitude and longitude along with a geohash, for locations and IP addresses.
 
-## Use:
+## Development Use:
 
 ### Help
 ```
 ./manage -h
 ```
 
-### Spin up the example container
+### Spin up the api container
 ```
 ./manage up
 ```
 
-### Tear down the example container
+### Tear down the api container
 ```
 ./manage down
 ```
