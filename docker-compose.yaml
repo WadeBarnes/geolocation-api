@@ -1,0 +1,25 @@
+version: "3"
+
+networks:
+  main:
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./docker/fastapi/Dockerfile
+    networks:
+      - main
+    ports:
+      - 8080:8080
+    volumes:
+      - ./app:/app
+    env_file:
+      - ${APP_ENV}
+    command: >
+      /bin/bash -c "
+      if [ "${RELOAD}" == "true" ]; then
+        /start-reload.sh
+      else
+        /start.sh
+      fi"
