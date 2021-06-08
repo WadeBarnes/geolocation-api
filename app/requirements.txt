@@ -1,1 +1,6 @@
 httpx
+
+geohash2
+geohashrs
+geohashlite
+PyGeodesy
