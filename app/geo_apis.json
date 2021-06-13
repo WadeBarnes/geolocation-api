@@ -1,0 +1,20 @@
+{
+  "geoplugin": {
+    "name": "geoPlugin",
+    "api": "http://www.geoplugin.net/json.gp?ip={ip_address}",
+    "homePage": "https://www.geoplugin.com/",
+    "apiDocs": "https://www.geoplugin.com/webservices/json" 
+  },
+  "ipinfo": {
+    "name": "ipinfo.io",
+    "api": "https://ipinfo.io/{ip_address}/json",
+    "homePage": "https://ipinfo.io",
+    "apiDocs": "https://ipinfo.io/developers" 
+  },
+  "ipwhois": {
+    "name": "IPWHOIS.IO",
+    "api": "https://ipwhois.app/json/{ip_address}",
+    "homePage": "https://ipwhois.io",
+    "apiDocs": "https://ipwhois.io/documentation" 
+  }
+}
