@@ -15,7 +15,7 @@ class GeoApis(object):
 
     @property
     def keys(self):
-        return self.apis.keys()
+        return self._apis.keys()
 
     def get_ip_api(self, api_id: str, ip_address: str):
         return self._apis[api_id]["api"].format(ip_address=ip_address)

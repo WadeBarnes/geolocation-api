@@ -1,10 +1,10 @@
 from typing import Optional
-from fastapi import FastAPI, Path, Query
-# from fastapi import FastAPI, Request, Query, Depends, Path, Body
-
+from fastapi import FastAPI, Path, Query, HTTPException, Body
 from pydantic import BaseModel
+from enum import Enum
 
 import os
+import ipaddress
 from httpx import AsyncClient
 import geohash2
 from geohashrs import geohash_encode
@@ -12,13 +12,20 @@ import geohashlite
 from pygeodesy import geohash as pygeodesy_geohash
 
 from GeoApis import GeoApis
+import json
+
 
 tags_metadata = [
     {
         "name": "IP Address APIs",
         "description": "APIs for looking up the Geolocation of an API Address.",
     },
+    {
+        "name": "Geohash APIs",
+        "description": "APIs for encoding lat/long as a Geohash.",
+    },
 ]
+
 
 api_collection = GeoApis()
 app = FastAPI(
@@ -47,170 +54,69 @@ class GeoHashRequest(BaseModel):
     longitude: float
     precision: Optional[int] = 12
 
-
-@app.get("/")
-async def read_root():
-    return {"Message": "Hello World!"}
-
-
-# ==========================================================================================
-# PyGeodesy
-# - https://pypi.org/project/PyGeodesy
-# - MIT License
-# - No dependancies?
-# - Last Update:  June, 4th 2021
-# - Way more features than needed.
-#
-# ipwhois:
-# {
-#   "latitude": -33.83965, "longitude": 151.20541,  "precision": 8
-# }
-# {
-#   "pygeodesy": "r3gx2z8m"
-# }
-#
-# ipinfo:
-# {
-#   "latitude": -33.8386, "longitude": 151.2033, "precision": 8
-# }
-# {
-#   "pygeodesy": "r3gx2xyg"
-# }
-#
-# geoPlugin:
-# {
-#   "latitude": -33.494, "longitude": 143.2104, "precision": 8
-# }
-# {
-#   "pygeodesy": "r4jc6yde"
-# }
-#
-#-------------------------------------------------------------------------------------------
-@app.post("/pygeodesy/encode")
-async def encode_using_pygeodesy(location: GeoHashRequest):
-    geohash = pygeodesy_geohash.encode(location.latitude, location.longitude, location.precision)
-    return {"pygeodesy": geohash}
-# ==========================================================================================
+class GeoHashEncoder(str, Enum):
+    pygeodesy = "pygeodesy"
+    geohashlite = "geohashlite"
+    geohashrs = "geohashrs"
+    geohash2 = "geohash2"
 
 
-# ==========================================================================================
-# geohashlite
-# - https://pypi.org/project/geohashlite
-# - MIT License
-# - One dependancy
-# - Last Update:  July, 31st 2019
-# - More features than needed.
-#
-# ipwhois:
-# {
-#   "latitude": -33.83965, "longitude": 151.20541,  "precision": 8
-# }
-# {
-#   "geohashlite": "r3gx2z8m"
-# }
-#
-# ipinfo:
-# {
-#   "latitude": -33.8386, "longitude": 151.2033, "precision": 8
-# }
-# {
-#   "geohashlite": "r3gx2xyg"
-# }
-#
-# geoPlugin:
-# {
-#   "latitude": -33.494, "longitude": 143.2104, "precision": 8
-# }
-# {
-#   "geohashlite": "r4jc6yde"
-# }
-#
-#-------------------------------------------------------------------------------------------
-@app.post("/geohashlite/encode")
-async def encode_using_geohashlite(location: GeoHashRequest):
-    geohash = geohashlite.encode(location.latitude, location.longitude, location.precision)
-    return {"geohashlite": geohash}
-# ==========================================================================================
+@app.post("/encode",
+    name="Geohash Encode",
+    summary="Encodes a location (specified as lat/long) into a Geohash",
+    tags=["Geohash APIs"],
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example":{"geohash": "r4jc6yde"}
+                }
+            }
+        }
+    }
+)
+async def encode_using_geohash2(location: GeoHashRequest = Body(..., example={"latitude": -33.494, "longitude": 143.2104, "precision": 8}),
+                                encoder: Optional[GeoHashEncoder] = Query(GeoHashEncoder.geohashrs)):
+    """Encodes a location specified as lat/long into a Geohash.
+    Supports the following Geohash encoders:
 
+    **[geohashlite](https://pypi.org/project/geohashlite)**
+    - MIT License
+    - One dependancy
+    - Last Update:  July, 31st 2019
+    - More features than needed.
 
-# ==========================================================================================
-# geohashrs
-# - https://pypi.org/project/geohashrs
-# - Apache-2.0 License
-# - Some dependancies.  I think for building, it's a Rust implementation.
-# - Last Update: Aug 9th 2020
-# - Has features needed.
-#
-# ipwhois:
-# {
-#   "latitude": -33.83965, "longitude": 151.20541,  "precision": 8
-# }
-# {
-#   "geohashrs": "r3gx2z8m"
-# }
-#
-# ipinfo:
-# {
-#   "latitude": -33.8386, "longitude": 151.2033, "precision": 8
-# }
-# {
-#   "geohashrs": "r3gx2xyg"
-# }
-#
-# geoPlugin:
-# {
-#   "latitude": -33.494, "longitude": 143.2104, "precision": 8
-# }
-# {
-#   "geohashrs": "r4jc6yde"
-# }
-#
-#-------------------------------------------------------------------------------------------
-@app.post("/geohashrs/encode")
-async def encode_using_geohashrs(location: GeoHashRequest):
-    geohash = geohash_encode(location.latitude, location.longitude, location.precision)
-    return {"geohashrs": geohash}
-# ==========================================================================================
+    **[geohashrs](https://pypi.org/project/geohashrs)**
+    - Apache-2.0 License
+    - Some dependancies.  I think for building, it's a Rust implementation.
+    - Last Update: Aug 9th 2020
+    - Has features needed.
 
+    **[geohash2](https://pypi.org/project/geohash2/)**
+    - AGPL-3.0 License
+    - Has dependancies
+    - Last Update: July 6th 2017
+    - Has features needed.    
 
-# ==========================================================================================
-# geohash2
-# - https://pypi.org/project/geohash2/
-# - AGPL-3.0 License
-# - Has dependancies
-# - Last Update: July 6th 2017
-# - Has features needed.
-#
-# ipwhois:
-# {
-#   "latitude": -33.83965, "longitude": 151.20541,  "precision": 8
-# }
-# {
-#   "geohashrs": "r3gx2z8m"
-# }
-#
-# ipinfo:
-# {
-#   "latitude": -33.8386, "longitude": 151.2033, "precision": 8
-# }
-# {
-#   "geohashrs": "r3gx2xyg"
-# }
-#
-# geoPlugin:
-# {
-#   "latitude": -33.494, "longitude": 143.2104, "precision": 8
-# }
-# {
-#   "geohashrs": "r4jc6yde"
-# }
-#
-#-------------------------------------------------------------------------------------------
-@app.post("/geohash2/encode")
-async def encode_using_geohash2(location: GeoHashRequest):
-    geohash = geohash2.encode(location.latitude, location.longitude, precision = location.precision)
-    return {"geohash2": geohash}
-# ==========================================================================================
+    **[PyGeodesy](https://pypi.org/project/PyGeodesy)**
+    - MIT License
+    - No dependancies?
+    - Last Update:  June, 4th 2021
+    - Way more features than needed.
+    """
+
+    if encoder == GeoHashEncoder.geohash2:
+        geohash = geohash2.encode(location.latitude, location.longitude, precision = location.precision)
+    elif encoder == GeoHashEncoder.geohashlite:
+        geohash = geohashlite.encode(location.latitude, location.longitude, location.precision)
+    elif encoder == GeoHashEncoder.geohashrs:
+        geohash = geohash_encode(location.latitude, location.longitude, location.precision)
+    elif encoder == GeoHashEncoder.pygeodesy:
+        geohash = pygeodesy_geohash.encode(location.latitude, location.longitude, location.precision)
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid geohash encoder; {encoder}")
+
+    return {"geohash": geohash}
 
 
 # Response Documentation Reference:
@@ -315,12 +221,35 @@ async def encode_using_geohash2(location: GeoHashRequest):
                 }
             },
         },
-    },
-    )
+        400: {
+            "description": "Error Examples:",
+            "content": {
+                "application/json": {
+                    "examples":{
+                        "Invalid IP Address": {
+                            "value": {"detail": "Invalid IP Address; 209.53.249"}
+                        },
+                        "Invalid Geolocation API": {
+                            "value": {"detail":"Invalid Geolocation API; some_geo_api.  Valid values are, ['geoplugin', 'ipinfo', 'ipwhois']"}
+                        }
+                    }
+                }
+            },
+        },
+    }
+)
 async def get_location_for_ip(ip_address: str = Path(..., description="The IP address to lookup."),
                               api: Optional[str] = Query("geoplugin", description="The Geolocation API to use for the lookup.  Options; **geoplugin**, **ipinfo**, or **ipwhois**")):
     """Looks up the Geolocation for a specified IP Address
     """
+    try:
+        ipaddress.ip_address(ip_address)
+    except:
+        raise HTTPException(status_code=400, detail=f"Invalid IP Address; {ip_address}")
+
+    if not api in api_collection.keys:
+        raise HTTPException(status_code=400, detail=f"Invalid Geolocation API; {api}.  Valid values are, {[*api_collection.keys]}")
+
     async with AsyncClient() as client:
         url = api_collection.get_ip_api(api, ip_address)
         response = await client.get(url)
