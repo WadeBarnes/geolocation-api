@@ -11,7 +11,7 @@ from geohashrs import geohash_encode
 import geohashlite
 from pygeodesy import geohash as pygeodesy_geohash
 
-from GeoApis import GeoApis
+from GeoApis import GeoApis, GeoApiEnum
 import json
 
 
@@ -27,7 +27,8 @@ tags_metadata = [
 ]
 
 
-api_collection = GeoApis()
+GeoApi: GeoApiEnum = GeoApis.get_GeoApiEnum()
+geo_apis: GeoApis = GeoApis()
 app = FastAPI(
     title = os.environ.get("APP_NAME"),
     description = os.environ.get("APP_DESCRIPTION"),
@@ -54,7 +55,8 @@ class GeoHashRequest(BaseModel):
     longitude: float
     precision: Optional[int] = 12
 
-class GeoHashEncoder(str, Enum):
+
+class GeoHashEncoder(Enum):
     pygeodesy = "pygeodesy"
     geohashlite = "geohashlite"
     geohashrs = "geohashrs"
@@ -76,7 +78,7 @@ class GeoHashEncoder(str, Enum):
     }
 )
 async def encode_using_geohash2(location: GeoHashRequest = Body(..., example={"latitude": -33.494, "longitude": 143.2104, "precision": 8}),
-                                encoder: Optional[GeoHashEncoder] = Query(GeoHashEncoder.geohashrs)):
+                                encoder: Optional[GeoHashEncoder] = Query(GeoHashEncoder.geohashrs, description="The GeoHash Encoder to use for encoding the location.")):
     """Encodes a location specified as lat/long into a Geohash.
     Supports the following Geohash encoders:
 
@@ -238,8 +240,8 @@ async def encode_using_geohash2(location: GeoHashRequest = Body(..., example={"l
         },
     }
 )
-async def get_location_for_ip(ip_address: str = Path(..., description="The IP address to lookup."),
-                              api: Optional[str] = Query("geoplugin", description="The Geolocation API to use for the lookup.  Options; **geoplugin**, **ipinfo**, or **ipwhois**")):
+async def get_location_for_ip(ip_address: str = Path(..., example="202.124.92.191", description="The IP address to lookup."),
+                              api: Optional[GeoApi] = Query(GeoApi.geoplugin, description="The Geolocation API to use for the lookup.")):
     """Looks up the Geolocation for a specified IP Address
     """
     try:
@@ -247,10 +249,7 @@ async def get_location_for_ip(ip_address: str = Path(..., description="The IP ad
     except:
         raise HTTPException(status_code=400, detail=f"Invalid IP Address; {ip_address}")
 
-    if not api in api_collection.keys:
-        raise HTTPException(status_code=400, detail=f"Invalid Geolocation API; {api}.  Valid values are, {[*api_collection.keys]}")
-
     async with AsyncClient() as client:
-        url = api_collection.get_ip_api(api, ip_address)
+        url = geo_apis.get_ip_api(api, ip_address)
         response = await client.get(url)
     return response.json()

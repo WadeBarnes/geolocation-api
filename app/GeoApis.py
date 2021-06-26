@@ -1,5 +1,12 @@
 import os
 import json
+from enum import Enum
+
+
+class GeoApiEnum(Enum):
+    def _generate_next_value_(name, start, count, last_values):
+        return name
+
 
 class GeoApis(object):
     def __init__(self):
@@ -17,5 +24,12 @@ class GeoApis(object):
     def keys(self):
         return self._apis.keys()
 
-    def get_ip_api(self, api_id: str, ip_address: str):
-        return self._apis[api_id]["api"].format(ip_address=ip_address)
+    def get_ip_api(self, api: GeoApiEnum, ip_address: str) -> str:
+        return self._apis[api.value]["api"].format(ip_address=ip_address)
+
+    @staticmethod
+    def get_GeoApiEnum() -> GeoApiEnum:
+        """Dynamically generates a GeoApiEnum that can be used to select the available GeoLocation APIs.
+        """
+        apis = GeoApis()
+        return GeoApiEnum('GeoApi', list(apis.keys))
