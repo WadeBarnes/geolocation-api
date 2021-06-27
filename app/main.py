@@ -1,5 +1,6 @@
 from typing import Optional
 from fastapi import FastAPI, Path, Query, HTTPException, Body
+from starlette.responses import RedirectResponse
 from pydantic import BaseModel
 from enum import Enum
 
@@ -18,7 +19,7 @@ import json
 tags_metadata = [
     {
         "name": "IP Address APIs",
-        "description": "APIs for looking up the Geolocation of an API Address.",
+        "description": "APIs for looking up the Geolocation of an IP Address.",
     },
     {
         "name": "Geohash APIs",
@@ -63,6 +64,12 @@ class GeoHashEncoder(Enum):
     geohash2 = "geohash2"
 
 
+# Redirect users to the '/docs' page but don't include this endpoint in the docs.
+@app.get("/", include_in_schema=False)
+async def redirect():
+    response = RedirectResponse(url='/docs')
+    return response
+
 @app.post("/encode",
     name="Geohash Encode",
     summary="Encodes a location (specified as lat/long) into a Geohash",
@@ -98,12 +105,12 @@ async def encode_using_geohash2(location: GeoHashRequest = Body(..., example={"l
     - AGPL-3.0 License
     - Has dependancies
     - Last Update: July 6th 2017
-    - Has features needed.    
+    - Has features needed.
 
     **[PyGeodesy](https://pypi.org/project/PyGeodesy)**
     - MIT License
     - No dependancies?
-    - Last Update:  June, 4th 2021
+    - Last Update:  June, 25th 2021
     - Way more features than needed.
     """
 
@@ -129,7 +136,7 @@ async def encode_using_geohash2(location: GeoHashRequest = Body(..., example={"l
     tags=["IP Address APIs"],
     responses={
         200: {
-            "description": "Examples from the various Geolocation APIS:",
+            "description": "Examples from the various Geolocation APIs:",
             "content": {
                 "application/json": {
                     "examples":{
@@ -230,9 +237,6 @@ async def encode_using_geohash2(location: GeoHashRequest = Body(..., example={"l
                     "examples":{
                         "Invalid IP Address": {
                             "value": {"detail": "Invalid IP Address; 209.53.249"}
-                        },
-                        "Invalid Geolocation API": {
-                            "value": {"detail":"Invalid Geolocation API; some_geo_api.  Valid values are, ['geoplugin', 'ipinfo', 'ipwhois']"}
                         }
                     }
                 }
