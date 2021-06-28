@@ -23,7 +23,7 @@ tags_metadata = [
     },
     {
         "name": "Geohash APIs",
-        "description": "APIs for encoding lat/long as a Geohash.",
+        "description": "APIs for encoding Geolocations as a Geohash.",
     },
 ]
 
@@ -64,6 +64,31 @@ class GeoHashEncoder(Enum):
     geohash2 = "geohash2"
 
 
+class GeoLocationResponse(BaseModel):
+    latitude: float
+    longitude: float
+    geohash: str
+
+
+async def get_ip_location(ip_address: str, api: GeoApi) -> str:
+    async with AsyncClient() as client:
+        url = geo_apis.get_ip_api(api, ip_address)
+        response = await client.get(url)
+    return response.json()
+
+async def get_geohash(location: GeoHashRequest, encoder: GeoHashEncoder) -> str:
+    if encoder == GeoHashEncoder.geohash2:
+        geohash = geohash2.encode(location.latitude, location.longitude, precision = location.precision)
+    elif encoder == GeoHashEncoder.geohashlite:
+        geohash = geohashlite.encode(location.latitude, location.longitude, location.precision)
+    elif encoder == GeoHashEncoder.geohashrs:
+        geohash = geohash_encode(location.latitude, location.longitude, location.precision)
+    elif encoder == GeoHashEncoder.pygeodesy:
+        geohash = pygeodesy_geohash.encode(location.latitude, location.longitude, location.precision)
+    else:
+        raise Exception(f"Invalid geohash encoder; {encoder}")
+    return geohash
+
 # Redirect users to the '/docs' page but don't include this endpoint in the docs.
 @app.get("/", include_in_schema=False)
 async def redirect():
@@ -71,21 +96,22 @@ async def redirect():
     return response
 
 @app.post("/encode",
-    name="Geohash Encode",
+    name="Encode as Geohash",
     summary="Encodes a location (specified as lat/long) into a Geohash",
     tags=["Geohash APIs"],
+    response_model=GeoLocationResponse,
     responses={
         200: {
             "content": {
                 "application/json": {
-                    "example":{"geohash": "r4jc6yde"}
+                    "example":{"latitude": -33.494, "longitude": 143.2104, "geohash": "r4jc6yde"}
                 }
             }
         }
     }
 )
-async def encode_using_geohash2(location: GeoHashRequest = Body(..., example={"latitude": -33.494, "longitude": 143.2104, "precision": 8}),
-                                encoder: Optional[GeoHashEncoder] = Query(GeoHashEncoder.geohashrs, description="The GeoHash Encoder to use for encoding the location.")):
+async def encode_as_geohash(location: GeoHashRequest = Body(..., example={"latitude": -33.494, "longitude": 143.2104, "precision": 8}),
+                            encoder: Optional[GeoHashEncoder] = Query(GeoHashEncoder.geohashrs, description="The GeoHash Encoder to use for encoding the location.")):
     """Encodes a location specified as lat/long into a Geohash.
     Supports the following Geohash encoders:
 
@@ -113,20 +139,8 @@ async def encode_using_geohash2(location: GeoHashRequest = Body(..., example={"l
     - Last Update:  June, 25th 2021
     - Way more features than needed.
     """
-
-    if encoder == GeoHashEncoder.geohash2:
-        geohash = geohash2.encode(location.latitude, location.longitude, precision = location.precision)
-    elif encoder == GeoHashEncoder.geohashlite:
-        geohash = geohashlite.encode(location.latitude, location.longitude, location.precision)
-    elif encoder == GeoHashEncoder.geohashrs:
-        geohash = geohash_encode(location.latitude, location.longitude, location.precision)
-    elif encoder == GeoHashEncoder.pygeodesy:
-        geohash = pygeodesy_geohash.encode(location.latitude, location.longitude, location.precision)
-    else:
-        raise HTTPException(status_code=400, detail=f"Invalid geohash encoder; {encoder}")
-
-    return {"geohash": geohash}
-
+    geohash = await get_geohash(location, encoder)
+    return GeoLocationResponse(latitude = location.latitude, longitude = location.longitude, geohash = geohash)
 
 # Response Documentation Reference:
 #   - https://fastapi.tiangolo.com/tutorial/schema-extra-example/#body-with-multiple-examples
@@ -245,7 +259,7 @@ async def encode_using_geohash2(location: GeoHashRequest = Body(..., example={"l
     }
 )
 async def get_location_for_ip(ip_address: str = Path(..., example="202.124.92.191", description="The IP address to lookup."),
-                              api: Optional[GeoApi] = Query(GeoApi.geoplugin, description="The Geolocation API to use for the lookup.")):
+                              api: Optional[GeoApi] = Query(GeoApi.geoplugin, description="The Geolocation API to use for the IP lookup.")):
     """Looks up the Geolocation for a specified IP Address
     """
     try:
@@ -253,7 +267,4 @@ async def get_location_for_ip(ip_address: str = Path(..., example="202.124.92.19
     except:
         raise HTTPException(status_code=400, detail=f"Invalid IP Address; {ip_address}")
 
-    async with AsyncClient() as client:
-        url = geo_apis.get_ip_api(api, ip_address)
-        response = await client.get(url)
-    return response.json()
+    return await get_ip_location(ip_address, api)
