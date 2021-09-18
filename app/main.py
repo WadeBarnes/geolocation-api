@@ -12,7 +12,7 @@ from geohashrs import geohash_encode
 import geohashlite
 from pygeodesy import geohash as pygeodesy_geohash
 
-from GeoApis import GeoApis, GeoApiEnum
+from GeoApis import GeoApis, GeoApiEnum, GeoLocation
 import json
 
 
@@ -40,6 +40,7 @@ app = FastAPI(
 
 # ToDo:
 #   - Add geohash convertion methods and APIs.
+#   - Add caching
 
 # Other References:
 # Lat,Long to goehash convertion web site:
@@ -65,6 +66,10 @@ class GeoHashEncoder(Enum):
 
 
 class GeoLocationResponse(BaseModel):
+    ip: str
+    country: str
+    region: str
+    city: str
     latitude: float
     longitude: float
     geohash: str
@@ -90,21 +95,26 @@ async def get_geohash(location: GeoHashRequest, encoder: GeoHashEncoder) -> str:
     return geohash
 
 async def encode_ip_location(ip_address: str, api: GeoApi, encoder: GeoHashEncoder, precision: int) -> GeoLocationResponse:
-    location = await get_ip_location(ip_address, api)
-
-    # Build GeoHashRequest
-    geohash_request = await build_geohash_request(location, precision)
-
     # ToDo:
-    #   - Finish
+    #   - Test
+    location_json = await get_ip_location(ip_address, api)
+    location = GeoApis.normalize_response(location_json)
 
-
-async def build_geohash_request(location: str, precision: int) -> GeoHashRequest:
-    # ToDo
-    #   - Flesh out ...
-
-    return None
-
+    geohash_request = GeoHashRequest(
+        latitude = location.latitude, 
+        longitude = location.longitude, 
+        precision = precision)
+    geohash = await get_geohash(geohash_request, encoder)
+    geolocation_response = GeoLocationResponse(
+        ip = location.ip,
+        country = location.country,
+        region = location.region,
+        city = location.city,
+        latitude = location.latitude,
+        longitude = location.longitude,
+        geohash = geohash
+    )
+    return geolocation_response
 
 # Redirect users to the '/docs' page but don't include this endpoint in the docs.
 @app.get("/", include_in_schema=False)
@@ -170,15 +180,8 @@ async def get_geo_location(ip_address: str = Path(..., example="202.124.92.191",
                            precision: Optional[int] = Query(8, description="Specifies the desired precision of the GeoHash.")):
     """Looks up the Geolocation for a specified IP Address and provides the result complete with a Geohash.
     """
-    # ToDo:
-    # Get the Geolocation of the IP address.
-    # Encode the location as a GeoHash.
-    # Return the data in a standard format.
-    #
-    # response = encode_ip_location(ip_address, api, encoder, precision)
-    # return response
-
-    return {"ip_address": ip_address, "api": api, "encoder": encoder, "precision": precision}
+    response = await encode_ip_location(ip_address, api, encoder, precision)
+    return response
 
 # Response Documentation Reference:
 #   - https://fastapi.tiangolo.com/tutorial/schema-extra-example/#body-with-multiple-examples
