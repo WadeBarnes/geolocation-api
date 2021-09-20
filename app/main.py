@@ -172,7 +172,37 @@ async def encode_as_geohash(location: GeoHashRequest = Body(..., example={"latit
 @app.get("/encode/{ip_address}",
     name="Get Geolocation",
     summary="Gets the location of an IP address complete with a Geohash.",
-    tags=["Geohash APIs"]
+    tags=["Geohash APIs"],
+    response_model=GeoLocationResponse,
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example":{
+                        "ip": "202.124.92.191",
+                        "country": "AU",
+                        "region": "",
+                        "city": "",
+                        "latitude": -33.494,
+                        "longitude": 143.2104,
+                        "geohash": "r4jc6yde"
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Error Examples:",
+            "content": {
+                "application/json": {
+                    "examples":{
+                        "Invalid IP Address": {
+                            "value": {"detail": "Invalid IP Address; 209.53.249"}
+                        }
+                    }
+                }
+            },
+        },
+    }
 )
 async def get_geo_location(ip_address: str = Path(..., example="202.124.92.191", description="The IP address to lookup."),
                            api: Optional[GeoApi] = Query(GeoApi.geoplugin, description="The Geolocation API to use for the IP lookup."),
@@ -180,8 +210,12 @@ async def get_geo_location(ip_address: str = Path(..., example="202.124.92.191",
                            precision: Optional[int] = Query(8, description="Specifies the desired precision of the GeoHash.")):
     """Looks up the Geolocation for a specified IP Address and provides the result complete with a Geohash.
     """
-    response = await encode_ip_location(ip_address, api, encoder, precision)
-    return response
+    try:
+        ipaddress.ip_address(ip_address)
+    except:
+        raise HTTPException(status_code=400, detail=f"Invalid IP Address; {ip_address}")
+
+    return await encode_ip_location(ip_address, api, encoder, precision)
 
 # Response Documentation Reference:
 #   - https://fastapi.tiangolo.com/tutorial/schema-extra-example/#body-with-multiple-examples
