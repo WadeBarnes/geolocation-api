@@ -12,7 +12,7 @@ from geohashrs import geohash_encode
 import geohashlite
 from pygeodesy import geohash as pygeodesy_geohash
 
-from GeoApis import GeoApis, GeoApiEnum
+from GeoApis import GeoApis, GeoApiEnum, GeoLocation
 import json
 
 
@@ -40,6 +40,7 @@ app = FastAPI(
 
 # ToDo:
 #   - Add geohash convertion methods and APIs.
+#   - Add caching
 
 # Other References:
 # Lat,Long to goehash convertion web site:
@@ -65,6 +66,10 @@ class GeoHashEncoder(Enum):
 
 
 class GeoLocationResponse(BaseModel):
+    ip: str
+    country: str
+    region: str
+    city: str
     latitude: float
     longitude: float
     geohash: str
@@ -88,6 +93,28 @@ async def get_geohash(location: GeoHashRequest, encoder: GeoHashEncoder) -> str:
     else:
         raise Exception(f"Invalid geohash encoder; {encoder}")
     return geohash
+
+async def encode_ip_location(ip_address: str, api: GeoApi, encoder: GeoHashEncoder, precision: int) -> GeoLocationResponse:
+    # ToDo:
+    #   - Test
+    location_json = await get_ip_location(ip_address, api)
+    location = GeoApis.normalize_response(location_json)
+
+    geohash_request = GeoHashRequest(
+        latitude = location.latitude, 
+        longitude = location.longitude, 
+        precision = precision)
+    geohash = await get_geohash(geohash_request, encoder)
+    geolocation_response = GeoLocationResponse(
+        ip = location.ip,
+        country = location.country,
+        region = location.region,
+        city = location.city,
+        latitude = location.latitude,
+        longitude = location.longitude,
+        geohash = geohash
+    )
+    return geolocation_response
 
 # Redirect users to the '/docs' page but don't include this endpoint in the docs.
 @app.get("/", include_in_schema=False)
@@ -140,7 +167,62 @@ async def encode_as_geohash(location: GeoHashRequest = Body(..., example={"latit
     - Way more features than needed.
     """
     geohash = await get_geohash(location, encoder)
-    return GeoLocationResponse(latitude = location.latitude, longitude = location.longitude, geohash = geohash)
+    return GeoLocationResponse(
+        latitude = location.latitude, 
+        longitude = location.longitude, 
+        geohash = geohash,
+        ip = "",
+        country = "",
+        region = "",
+        city = "")
+
+@app.get("/encode/{ip_address}",
+    name="Get Geolocation",
+    summary="Gets the location of an IP address complete with a Geohash.",
+    tags=["Geohash APIs"],
+    response_model=GeoLocationResponse,
+    responses={
+        200: {
+            "content": {
+                "application/json": {
+                    "example":{
+                        "ip": "202.124.92.191",
+                        "country": "AU",
+                        "region": "",
+                        "city": "",
+                        "latitude": -33.494,
+                        "longitude": 143.2104,
+                        "geohash": "r4jc6yde"
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Error Examples:",
+            "content": {
+                "application/json": {
+                    "examples":{
+                        "Invalid IP Address": {
+                            "value": {"detail": "Invalid IP Address; 209.53.249"}
+                        }
+                    }
+                }
+            },
+        },
+    }
+)
+async def get_geo_location(ip_address: str = Path(..., example="202.124.92.191", description="The IP address to lookup."),
+                           api: Optional[GeoApi] = Query(GeoApi.geoplugin, description="The Geolocation API to use for the IP lookup."),
+                           encoder: Optional[GeoHashEncoder] = Query(GeoHashEncoder.geohashrs, description="The GeoHash Encoder to use for encoding the location."),
+                           precision: Optional[int] = Query(8, description="Specifies the desired precision of the GeoHash.")):
+    """Looks up the Geolocation for a specified IP Address and provides the result complete with a Geohash.
+    """
+    try:
+        ipaddress.ip_address(ip_address)
+    except:
+        raise HTTPException(status_code=400, detail=f"Invalid IP Address; {ip_address}")
+
+    return await encode_ip_location(ip_address, api, encoder, precision)
 
 # Response Documentation Reference:
 #   - https://fastapi.tiangolo.com/tutorial/schema-extra-example/#body-with-multiple-examples
@@ -260,7 +342,7 @@ async def encode_as_geohash(location: GeoHashRequest = Body(..., example={"latit
 )
 async def get_location_for_ip(ip_address: str = Path(..., example="202.124.92.191", description="The IP address to lookup."),
                               api: Optional[GeoApi] = Query(GeoApi.geoplugin, description="The Geolocation API to use for the IP lookup.")):
-    """Looks up the Geolocation for a specified IP Address
+    """Looks up the Geolocation for a specified IP Address.
     """
     try:
         ipaddress.ip_address(ip_address)

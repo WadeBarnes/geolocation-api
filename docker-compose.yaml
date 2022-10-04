@@ -11,7 +11,7 @@ services:
     networks:
       - main
     ports:
-      - 8080:8080
+      - ${PORT}:${PORT}
     volumes:
       - ./app:/app
     env_file:
