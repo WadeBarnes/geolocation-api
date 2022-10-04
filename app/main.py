@@ -167,7 +167,14 @@ async def encode_as_geohash(location: GeoHashRequest = Body(..., example={"latit
     - Way more features than needed.
     """
     geohash = await get_geohash(location, encoder)
-    return GeoLocationResponse(latitude = location.latitude, longitude = location.longitude, geohash = geohash)
+    return GeoLocationResponse(
+        latitude = location.latitude, 
+        longitude = location.longitude, 
+        geohash = geohash,
+        ip = "",
+        country = "",
+        region = "",
+        city = "")
 
 @app.get("/encode/{ip_address}",
     name="Get Geolocation",
